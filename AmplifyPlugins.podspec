@@ -23,7 +23,7 @@ Pod::Spec.new do |s|
   s.homepage     = 'https://github.com/aws-amplify/amplify-ios'
   s.license      = 'Apache License, Version 2.0'
   s.author       = { 'Amazon Web Services' => 'amazonwebservices' }
-  s.source       = { :git => 'https://github.com/aws-amplify/amplify-ios.git', :branch => 'experimental' }
+  s.source       = { :git => 'https://github.com/hakanyildizay/amplify-ios.git', :branch => 'experimental' }
 
   s.platform = :ios, '11.0'
   s.swift_version = '5.0'
