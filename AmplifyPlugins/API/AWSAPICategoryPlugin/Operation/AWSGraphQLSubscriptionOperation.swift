@@ -19,17 +19,20 @@ final public class AWSGraphQLSubscriptionOperation<R: Decodable>: GraphQLSubscri
 
     var subscriptionConnection: SubscriptionConnection?
     var subscriptionItem: SubscriptionItem?
+    var apiAuthProviderFactory: APIAuthProviderFactory
 
     init(request: GraphQLOperationRequest<R>,
          pluginConfig: AWSAPICategoryPluginConfiguration,
          subscriptionConnectionFactory: SubscriptionConnectionFactory,
          authService: AWSAuthServiceBehavior,
+         apiAuthProviderFactory: APIAuthProviderFactory,
          inProcessListener: AWSGraphQLSubscriptionOperation.InProcessListener?,
          resultListener: AWSGraphQLSubscriptionOperation.ResultListener?) {
 
         self.pluginConfig = pluginConfig
         self.subscriptionConnectionFactory = subscriptionConnectionFactory
         self.authService = authService
+        self.apiAuthProviderFactory = apiAuthProviderFactory
 
         super.init(categoryType: .api,
                    eventName: HubPayload.EventName.API.subscribe,
@@ -43,11 +46,10 @@ final public class AWSGraphQLSubscriptionOperation<R: Decodable>: GraphQLSubscri
             subscriptionConnection.unsubscribe(item: subscriptionItem)
             let subscriptionEvent = SubscriptionEvent<GraphQLResponse<R>>.connection(.disconnected)
             dispatchInProcess(data: subscriptionEvent)
-            dispatch(result: .successfulVoid)
-            finish()
-        } else {
-            super.cancel()
         }
+        super.cancel()
+        dispatch(result: .successfulVoid)
+        finish()
     }
 
     override public func main() {
@@ -85,8 +87,10 @@ final public class AWSGraphQLSubscriptionOperation<R: Decodable>: GraphQLSubscri
 
         // Retrieve the subscription connection
         do {
-            subscriptionConnection = try subscriptionConnectionFactory.getOrCreateConnection(for: endpointConfig,
-                                                                                             authService: authService)
+            subscriptionConnection = try subscriptionConnectionFactory
+                .getOrCreateConnection(for: endpointConfig,
+                                       authService: authService,
+                                       apiAuthProviderFactory: apiAuthProviderFactory)
         } catch {
             let error = APIError.operationError("Unable to get connection for api \(endpointConfig.name)", "", error)
             dispatch(result: .failure(error))
@@ -111,8 +115,7 @@ final public class AWSGraphQLSubscriptionOperation<R: Decodable>: GraphQLSubscri
         case .data(let data):
             onGraphQLResponseData(data)
         case .failed(let error):
-            dispatch(result: .failure(APIError.operationError("subscription item event failed with error", "", error)))
-            finish()
+            onSubscriptionFailure(error)
         }
     }
 
@@ -160,6 +163,21 @@ final public class AWSGraphQLSubscriptionOperation<R: Decodable>: GraphQLSubscri
             dispatch(result: .failure(APIError.operationError("Failed to deserialize", "", error)))
             finish()
         }
+    }
+
+    private func onSubscriptionFailure(_ error: Error) {
+        let errorDescription = "Subscription item event failed with error"
+        if case let ConnectionProviderError.subscription(_, payload) = error,
+           let errors = payload?["errors"] as? AppSyncJSONValue,
+           let graphQLErrors = try? GraphQLResponseDecoder.decodeAppSyncErrors(errors) {
+            let graphQLResponseError = GraphQLResponseError<R>.error(graphQLErrors)
+            dispatch(result: .failure(APIError.operationError(errorDescription, "", graphQLResponseError)))
+            finish()
+            return
+        }
+
+        dispatch(result: .failure(APIError.operationError(errorDescription, "", error)))
+        finish()
     }
 
 }

@@ -26,7 +26,7 @@ class AuthUsernamePasswordSignInTests: AWSAuthBaseTest {
     ///
     /// - Given: A user registered in Cognito user pool
     /// - When:
-    ///    - I invoke Amplify.Auth.signIn with the username password
+    ///    - I invoke Amplify.Auth.signIn with the username and password
     /// - Then:
     ///    - I should get a completed signIn flow.
     ///
@@ -44,6 +44,56 @@ class AuthUsernamePasswordSignInTests: AWSAuthBaseTest {
 
         let operationExpectation = expectation(description: "Operation should complete")
         let operation = Amplify.Auth.signIn(username: username, password: password) { result in
+            defer {
+                operationExpectation.fulfill()
+            }
+            switch result {
+            case .success(let signInResult):
+                XCTAssertTrue(signInResult.isSignedIn, "SignIn should be complete")
+            case .failure(let error):
+                XCTFail("SignIn with a valid username/password should not fail \(error)")
+            }
+        }
+        XCTAssertNotNil(operation, "SignIn operation should not be nil")
+        wait(for: [operationExpectation], timeout: networkTimeout)
+    }
+
+    /// Test successful signIn of a valid user
+    /// Internally, Two Cognito APIs will be called, Cognito's `InitiateAuth` and `RespondToAuthChallenge` API.
+    ///
+    /// `InitiateAuth` will trigger the Pre signup, Pre authentication, and User migration lambdas. Passed in metadata
+    /// will be used as client metadata to Cognito's API, and passed to the the lambda as validationData.
+    /// See https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_InitiateAuth.html for more
+    /// details.
+    ///
+    /// `RespondToAuthChallenge` will trigger the Post authentication, Pre token generation, Define auth challenge,
+    /// Create auth challenge, and Verify auth challenge lambdas. Passed in metadata will be used as client metadata to
+    /// Cognito's API, and passed to the lambda as clientMetadata.
+    /// See https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_RespondToAuthChallenge.html
+    /// for more details
+    ///
+    /// - Given: A user registered in Cognito user pool
+    /// - When:
+    ///    - I invoke Amplify.Auth.signIn with the username, password and AWSAuthSignInOptions
+    /// - Then:
+    ///    - I should get a completed signIn flow.
+    ///
+    func testSignInWithSignInOptions() {
+
+        let username = "integTest\(UUID().uuidString)"
+        let password = "P123@\(UUID().uuidString)"
+
+        let signUpExpectation = expectation(description: "SignUp operation should complete")
+        AuthSignInHelper.signUpUser(username: username, password: password) { didSucceed, error in
+            signUpExpectation.fulfill()
+            XCTAssertTrue(didSucceed, "Signup operation failed - \(String(describing: error))")
+        }
+        wait(for: [signUpExpectation], timeout: networkTimeout)
+
+        let operationExpectation = expectation(description: "Operation should complete")
+        let awsAuthSignInOptions = AWSAuthSignInOptions(metadata: ["mySignInData": "myvalue"])
+        let options = AuthSignInOperation.Request.Options(pluginOptions: awsAuthSignInOptions)
+        let operation = Amplify.Auth.signIn(username: username, password: password, options: options) { result in
             defer {
                 operationExpectation.fulfill()
             }

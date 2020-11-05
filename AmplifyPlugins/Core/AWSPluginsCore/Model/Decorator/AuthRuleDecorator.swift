@@ -8,9 +8,10 @@
 import Foundation
 import Amplify
 
+public typealias IdentityClaimsDictionary = [String: AnyObject]
+
 public enum AuthRuleDecoratorInput {
-    public typealias OwnerId = String
-    case subscription(GraphQLSubscriptionType, OwnerId)
+    case subscription(GraphQLSubscriptionType, IdentityClaimsDictionary)
     case mutation
     case query
 }
@@ -41,56 +42,87 @@ public struct AuthRuleDecorator: ModelBasedGraphQLDocumentDecorator {
             return document
         }
         var decorateDocument = document
+        if authRules.readRestrictingOwnerRules().count > 1 {
+            log.error("""
+            Detected multiple owner type auth rules \
+            with a READ operation. We currently do not support this use case. Please \
+            limit your type to just one owner auth rule with a READ operation restriction.
+            """)
+            return decorateDocument
+        }
+
+        let readRestrictingStaticGroups = authRules.groupClaimsToReadRestrictingStaticGroups()
         authRules.forEach { authRule in
-            decorateDocument = decorateIfOwnerAuthStrategy(document: decorateDocument, authRule: authRule)
+            decorateDocument = decorateAuthStrategy(document: decorateDocument,
+                                                    authRule: authRule,
+                                                    readRestrictingStaticGroups: readRestrictingStaticGroups)
         }
         return decorateDocument
     }
 
-    func decorateIfOwnerAuthStrategy(document: SingleDirectiveGraphQLDocument,
-                                     authRule: AuthRule) -> SingleDirectiveGraphQLDocument {
-        guard authRule.allow == .owner else {
-            return document
-        }
-
-        guard var selectionSet = document.selectionSet else {
+    private func decorateAuthStrategy(document: SingleDirectiveGraphQLDocument,
+                                      authRule: AuthRule,
+                                      readRestrictingStaticGroups: [String: Set<String>]) -> SingleDirectiveGraphQLDocument {
+        guard authRule.allow == .owner,
+            var selectionSet = document.selectionSet else {
             return document
         }
 
         let ownerField = authRule.getOwnerFieldOrDefault()
         selectionSet = appendOwnerFieldToSelectionSetIfNeeded(selectionSet: selectionSet, ownerField: ownerField)
 
-        guard case let .subscription(subscriptionType, ownerId) = input else {
-            return document.copy(selectionSet: selectionSet)
-        }
-
-        let operations = authRule.getModelOperationsOrDefault()
-        if isOwnerInputRequiredOnSubscription(subscriptionType, operations: operations) {
+        if case let .subscription(_, claims) = input,
+            authRule.isReadRestrictingOwner() &&
+                isNotInReadRestrictingStaticGroup(jwtTokenClaims: claims,
+                                                  readRestrictingStaticGroups: readRestrictingStaticGroups) {
             var inputs = document.inputs
-            inputs[ownerField] = GraphQLDocumentInput(type: "String!", value: .scalar(ownerId))
+            let identityClaimValue = resolveIdentityClaimValue(identityClaim: authRule.identityClaimOrDefault(),
+                                                               claims: claims)
+            if let identityClaimValue = identityClaimValue {
+                inputs[ownerField] = GraphQLDocumentInput(type: "String!", value: .scalar(identityClaimValue))
+            }
             return document.copy(inputs: inputs, selectionSet: selectionSet)
         }
         return document.copy(selectionSet: selectionSet)
     }
 
-    private func isOwnerInputRequiredOnSubscription(_ subscriptionType: GraphQLSubscriptionType,
-                                                    operations: [ModelOperation]) -> Bool {
-        var isOwnerInputRequired = false
-        switch subscriptionType {
-        case .onCreate:
-            if operations.contains(.create) {
-                isOwnerInputRequired = true
-            }
-        case .onUpdate:
-            if operations.contains(.update) {
-                isOwnerInputRequired = true
-            }
-        case .onDelete:
-            if operations.contains(.delete) {
-                isOwnerInputRequired = true
+    private func isNotInReadRestrictingStaticGroup(jwtTokenClaims: IdentityClaimsDictionary,
+                                                   readRestrictingStaticGroups: [String: Set<String>]) -> Bool {
+        for (groupClaim, readRestrictingStaticGroupsPerClaim) in readRestrictingStaticGroups {
+            let groupsFromClaim = groupsFrom(jwtTokenClaims: jwtTokenClaims, groupClaim: groupClaim)
+            let doesNotBelongToGroupsFromClaim = readRestrictingStaticGroupsPerClaim.isEmpty ||
+                readRestrictingStaticGroupsPerClaim.isDisjoint(with: groupsFromClaim)
+            if doesNotBelongToGroupsFromClaim {
+                continue
+            } else {
+                return false
             }
         }
-        return isOwnerInputRequired
+        return true
+    }
+
+    private func groupsFrom(jwtTokenClaims: IdentityClaimsDictionary,
+                            groupClaim: String) -> Set<String> {
+        var groupSet = Set<String>()
+        if let groups = (jwtTokenClaims[groupClaim] as? NSArray) as Array? {
+            for group in groups {
+                if let groupString = group as? String {
+                    groupSet.insert(groupString)
+                }
+            }
+        }
+        return groupSet
+    }
+
+    private func resolveIdentityClaimValue(identityClaim: String, claims: IdentityClaimsDictionary) -> String? {
+        guard let identityValue = claims[identityClaim] as? String else {
+            log.error("""
+                Attempted to subscribe to a model with owner based authorization without \(identityClaim)
+                which was specified (or defaulted to) as the identity claim.
+                """)
+            return nil
+        }
+        return identityValue
     }
 
     /// First finds the first `model` SelectionSet. Then, only append it when the `ownerField` does not exist.
@@ -120,3 +152,5 @@ public struct AuthRuleDecorator: ModelBasedGraphQLDocumentDecorator {
         return selectionSet
     }
 }
+
+extension AuthRuleDecorator: DefaultLogger { }

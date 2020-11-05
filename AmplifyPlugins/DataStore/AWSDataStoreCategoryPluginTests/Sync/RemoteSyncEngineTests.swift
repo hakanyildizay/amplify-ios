@@ -25,6 +25,7 @@ class RemoteSyncEngineTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        apiPlugin = MockAPICategoryPlugin()
         MockAWSInitialSyncOrchestrator.reset()
         storageAdapter = MockSQLiteStorageEngineAdapter()
         let mockOutgoingMutationQueue = MockOutgoingMutationQueue()
@@ -68,6 +69,7 @@ class RemoteSyncEngineTests: XCTestCase {
         let mutationsPaused = expectation(description: "mutationsPaused")
         let stateMutationsCleared = expectation(description: "stateMutationsCleared")
         let subscriptionsInitialized = expectation(description: "subscriptionsInitialized")
+        let subscriptionsEstablishedReceived = expectation(description: "subscriptionsEstablished received")
         let cleanedup = expectation(description: "cleanedup")
         let failureOnInitialSync = expectation(description: "failureOnInitialSync")
 
@@ -75,6 +77,17 @@ class RemoteSyncEngineTests: XCTestCase {
 
         let advice = RequestRetryAdvice.init(shouldRetry: false)
         mockRequestRetryablePolicy.pushOnRetryRequestAdvice(response: advice)
+
+        let filter = HubFilters.forEventName(HubPayload.EventName.DataStore.subscriptionsEstablished)
+        let hubListener = Amplify.Hub.listen(to: .dataStore, isIncluded: filter) { payload in
+            XCTAssertNil(payload.data)
+            subscriptionsEstablishedReceived.fulfill()
+        }
+
+        guard try HubListenerTestUtilities.waitForListener(with: hubListener, timeout: 5.0) else {
+            XCTFail("Listener not registered for hub")
+            return
+        }
 
         let remoteSyncEngineSink = remoteSyncEngine
             .publisher
@@ -106,16 +119,18 @@ class RemoteSyncEngineTests: XCTestCase {
         MockAWSInitialSyncOrchestrator.setResponseOnSync(result:
             .failure(DataStoreError.internalOperation("forceError", "none", nil)))
 
-        remoteSyncEngine.start()
+        remoteSyncEngine.start(api: apiPlugin)
 
         wait(for: [storageAdapterAvailable,
                    subscriptionsPaused,
                    mutationsPaused,
                    stateMutationsCleared,
                    subscriptionsInitialized,
+                   subscriptionsEstablishedReceived,
                    cleanedup,
                    failureOnInitialSync], timeout: defaultAsyncWaitTimeout)
         remoteSyncEngineSink.cancel()
+        Amplify.Hub.removeListener(hubListener)
     }
 
     func testRemoteSyncEngineHappyPath() throws {
@@ -163,7 +178,7 @@ class RemoteSyncEngineTests: XCTestCase {
                 }
             })
 
-        remoteSyncEngine.start()
+        remoteSyncEngine.start(api: apiPlugin)
 
         wait(for: [storageAdapterAvailable,
                    subscriptionsPaused,
@@ -234,7 +249,7 @@ class RemoteSyncEngineTests: XCTestCase {
                 }
             })
 
-        remoteSyncEngine.start()
+        remoteSyncEngine.start(api: apiPlugin)
 
         wait(for: [storageAdapterAvailable,
                    subscriptionsPaused,
@@ -311,7 +326,7 @@ class RemoteSyncEngineTests: XCTestCase {
                 }
             })
 
-        remoteSyncEngine.start()
+        remoteSyncEngine.start(api: apiPlugin)
 
         wait(for: [storageAdapterAvailable,
                    subscriptionsPaused,
