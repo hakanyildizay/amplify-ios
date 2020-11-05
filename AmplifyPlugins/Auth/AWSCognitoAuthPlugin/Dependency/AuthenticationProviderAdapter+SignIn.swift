@@ -20,12 +20,12 @@ extension AuthenticationProviderAdapter {
         // Password can be nil, but awsmobileclient need it to have a dummy value.
         let password = request.password ?? ""
 
-        // AWSMobileClient internally uses the validationData as the clientMetaData, so passing the metaData
-        // to the validationData here.
-        let validationData = (request.options.pluginOptions as? AWSAuthSignInOptions)?.metadata
+        let clientMetaData = (request.options.pluginOptions as? AWSAuthSignInOptions)?.metadata ?? [:]
+
         awsMobileClient.signIn(username: username,
                                password: password,
-                               validationData: validationData) { [weak self] result, error in
+                               validationData: nil,
+                               clientMetaData: clientMetaData) { [weak self] result, error in
                                 guard let self = self else { return }
 
                                 guard error == nil else {
@@ -137,34 +137,39 @@ extension AuthenticationProviderAdapter {
         let navController = UINavigationController(rootViewController: UIViewController())
         navController.isNavigationBarHidden = true
         navController.modalPresentationStyle = .overCurrentContext
-        window.rootViewController?.present(navController, animated: false, completion: {
+
+        // Get top most view controller to present a navController
+        var parentViewController = window.rootViewController
+        while (parentViewController?.presentedViewController) != nil {
+            parentViewController = parentViewController?.presentedViewController
+        }
+
+        parentViewController?.present(navController, animated: false, completion: {
 
             self.awsMobileClient.showSignIn(navigationController: navController,
                                             signInUIOptions: SignInUIOptions(),
                                             hostedUIOptions: hostedUIOptions) { [weak self] state, error in
-                                                defer {
-                                                    DispatchQueue.main.async {
-                                                        navController.dismiss(animated: false)
-                                                    }
-                                                }
-                                                guard let self = self else { return }
 
-                                                if let error = error {
-                                                    let authError = self.convertSignUIErrorToAuthError(error)
-                                                    completionHandler(.failure(authError))
-                                                    return
-                                                }
+                DispatchQueue.main.async {
+                    navController.dismiss(animated: false) {
+                        guard let self = self else { return }
 
-                                                guard let state = state, state == .signedIn else {
+                        if let error = error {
+                            let authError = self.convertSignUIErrorToAuthError(error)
+                            completionHandler(.failure(authError))
+                            return
+                        }
 
-                                                    let error = AuthError.unknown("""
-                                                    signInWithWebUI did not produce a valid result.
-                                                    """)
-                                                    completionHandler(.failure(error))
-                                                    return
-                                                }
-                                                let authResult = AuthSignInResult(nextStep: .done)
-                                                completionHandler(.success(authResult))
+                        guard let state = state, state == .signedIn else {
+
+                            let error = AuthError.unknown("signInWithWebUI did not produce a valid result.")
+                            completionHandler(.failure(error))
+                            return
+                        }
+                        let authResult = AuthSignInResult(nextStep: .done)
+                        completionHandler(.success(authResult))
+                    }
+                }
             }
 
         })

@@ -22,7 +22,7 @@ final class StorageEngine: StorageEngineBehavior {
 
     var iSyncEngineSink: Any?
     @available(iOS 13.0, *)
-    var sinkEngineSink: AnyCancellable? {
+    var syncEngineSink: AnyCancellable? {
         get {
             if let iSyncEngineSink = iSyncEngineSink as? AnyCancellable {
                 return iSyncEngineSink
@@ -98,7 +98,7 @@ final class StorageEngine: StorageEngineBehavior {
                       validAPIPluginKey: validAPIPluginKey,
                       validAuthPluginKey: validAuthPluginKey)
             self.storageEnginePublisher = PassthroughSubject<StorageEngineEvent, DataStoreError>()
-            sinkEngineSink = syncEngine?.publisher.sink(receiveCompletion: onReceiveCompletion(receiveCompletion:),
+            syncEngineSink = syncEngine?.publisher.sink(receiveCompletion: onReceiveCompletion(receiveCompletion:),
                                                         receiveValue: onReceive(receiveValue:))
         } else {
             self.init(storageAdapter: storageAdapter,
@@ -293,8 +293,8 @@ final class StorageEngine: StorageEngineBehavior {
             try storageAdapter.transaction {
                 storageAdapter.query(modelType,
                                      predicate: predicate,
+                                     sort: nil,
                                      paginationInput: nil,
-                                     additionalStatements: nil,
                                      completion: queryCompletionBlock)
             }
         } catch {
@@ -329,10 +329,12 @@ final class StorageEngine: StorageEngineBehavior {
 
     func query<M: Model>(_ modelType: M.Type,
                          predicate: QueryPredicate? = nil,
+                         sort: QuerySortInput? = nil,
                          paginationInput: QueryPaginationInput? = nil,
                          completion: DataStoreCallback<[M]>) {
         return storageAdapter.query(modelType,
                                     predicate: predicate,
+                                    sort: sort,
                                     paginationInput: paginationInput,
                                     completion: completion)
     }

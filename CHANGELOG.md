@@ -1,10 +1,117 @@
 # Changelog
+## Unreleased
+## 1.4.0 (2020-10-23)
+
+### Features
+
+- **dev-menu**: add the Developer Menu to Amplify (#844)
+- **datastore**: DataStore Hub events (#766) (#795)
+
+### Bug Fixes
+
+- **Core**: use groupClaim in @auth rule for oidc (#847)
+- **API**: Support for auth api oidc provider (#842)
+- **api**: make sure collections are not in the gql input - fixes #828 (#837)
+- replace fastlane warn method (#835)
+
+## 1.3.2 (2020-10-16)
+
+### Bug Fixes
+
+- move AWSServiceConfiguration Platform extension (#832)
+- auth category should throw AuthError instead of PredictionsError (#830)
+- **DataStore**: Owner and Group Combined @auth (#817)
+- **auth**: rename conflicting name AWSAuthService to AWSCognitoAuthService (#824)
+- **datastore**: Keep DataStore sync engine running even if models subscriptions fail (#815)
+- **auth**: Dismiss UI first before sending callback for HostedUI (#820)
+- **Core**: support for custom identity claim (#813)
+- Parse and surface returned subscription @auth errors (#810)
+- **Core**: support identityClaim "sub" (#794)
+- **DataStore**: owner based auth, read operations (#788)
+
+## 1.3.1 (2020-10-01)
+
+### Bug Fixes
+
+- Data race in AWSModelReconciliationQueue (#790)
+- Remove unused RepeatingTimer (#786)
+
+## 1.3.0 (2020-09-29)
+
+### Features
+
+- Support Xcode 12 (#779)
+- **datastore**: Dispatch outboxMutationEnqueued, outboxMutationProcessed events (#759)
+
+### Bug Fixes
+
+- Remove enableThreadSanitizer flag from test invocation (#783)
+- Add #if swift check for Combine publishers (#775)
+
+## 1.2.0 (2020-09-16)
+
+### Features
+
+- **DataStore**: Dispatch outboxStatus, subscriptionsEstablished, syncQueriesStarted events ([#721](https://github.com/aws-amplify/amplify-ios/pull/721))
+
+### Bug Fixes
+
+- **DataStore**: Fix publishing events from model reconciliation queue ([#756](https://github.com/aws-amplify/amplify-ios/pull/756))
+- **Core**: Fix default operator outside of guard statement ([#752](https://github.com/aws-amplify/amplify-ios/pull/752))
+
+## 1.1.2 (2020-08-30)
+
+### Bug Fixes
+
+- **Auth**: Updated AWS SDK dependencies to fix crash during `federatedSignIn` (#640)
+- **API**: Add custom 'items' deserialization for List (#711)
+- Fix typo in iOS Combine docs (#747)
+
+## 1.1.1 (2020-08-18)
+
+### Bug Fixes
+
+- Propagate @discardableResult to implementations (#719)
+
+## 1.1.0 (2020-08-12)
+
+### Features
+
+- **auth**: Add metadata options for passing clientMetadata to APIs (#700)
+- Add Combine support (#667)
+- Mark APIs that return operations with @discardableResult (#633)
+- Add AmplifyConfiguration file-based initializer (#707)
+
+### Bug Fixes
+
+- **Predictions**: rowIndex and columnIndex for cell (#704)
+- **predictions**: TABLE, CELL & KEY_VALUE_SET blocks are not properly processed (#660)
+- **api**: cognito user pool intercept with accessToken (#690)
+
+## 1.0.6 (2020-08-03)
+
+### Bug Fixes
+
+- Update AppSyncRealTimeClient dependency (#683)
+
+## 1.0.5 (2020-07-24)
+
+### Bug Fixes
+
+- **auth**: missing initializers for AWSAuth*Options (#658)
+- **storage**: delete file if key not found on download (#652)
+- Fix cancellation logic for AWSGraphQLSubscriptionOperation (#650)
+- Plugins that are not configured correctly will be error at initial step (#642)
+- **Datastore**: paginationInput not passed down in query (#647)
+- **auth**: Fix an issue that prevents signInWithWebUI to present over a presenting vc (#635)
+- **auth**: User pool token, user sub should be returned for signedIn user with no identityPool config (#632)
 
 ## 1.0.4 (2020-07-01)
 
 ### Bug Fixes
 
-- DataStore E2E Integration Tests (#596)
+- DataStore E2E Integration Tests ([#596](https://github.com/aws-amplify/amplify-ios/pull/596))
+- Auth updated the AWSMobileClient version to 2.14.0 to fix a crash related to nil user pool client ([#592](https://github.com/aws-amplify/amplify-ios/issues/592))
 
 ## 1.0.3 (2020-06-26)
 

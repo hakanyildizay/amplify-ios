@@ -7,10 +7,10 @@
 #
 
 # Version definitions
-$AMPLIFY_VERSION = '1.0.4'
+$AMPLIFY_VERSION = '1.4.0'
 $AMPLIFY_RELEASE_TAG = "v#{$AMPLIFY_VERSION}"
 
-$AWS_SDK_VERSION = '2.14.0'
+$AWS_SDK_VERSION = '2.18.0'
 $OPTIMISTIC_AWS_SDK_VERSION = "~> #{$AWS_SDK_VERSION}"
 
 Pod::Spec.new do |s|
@@ -37,7 +37,7 @@ Pod::Spec.new do |s|
   s.subspec 'AWSAPIPlugin' do |ss|
     ss.source_files = 'AmplifyPlugins/API/AWSAPICategoryPlugin/**/*.swift'
     ss.dependency 'ReachabilitySwift', '~> 5.0.0'
-    ss.dependency 'AppSyncRealTimeClient', "~> 1.1.0"
+    ss.dependency 'AppSyncRealTimeClient', "~> 1.4.0"
   end
 
   s.subspec 'AWSCognitoAuthPlugin' do |ss|
@@ -46,8 +46,9 @@ Pod::Spec.new do |s|
 
     # This is technically redundant, but adding it here allows Xcode to find it
     # during initial indexing and prevent build errors after a fresh install
-    s.dependency 'AWSAuthCore', $OPTIMISTIC_AWS_SDK_VERSION
-
+    ss.dependency 'AWSAuthCore', $OPTIMISTIC_AWS_SDK_VERSION
+    ss.dependency 'AWSCognitoIdentityProvider', $OPTIMISTIC_AWS_SDK_VERSION
+    ss.dependency 'AWSCognitoIdentityProviderASF', $OPTIMISTIC_AWS_SDK_VERSION
   end
 
   s.subspec 'AWSDataStorePlugin' do |ss|

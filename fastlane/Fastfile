@@ -6,6 +6,12 @@ default_platform(:ios)
 PLIST_KEY = "CFBundleShortVersionString"
 
 platform :ios do
+  before_all do 
+    # Perform a fetch before inferring the next version 
+    # to reduce race conditions with simultaneous pipelines attempting to create the same tag
+    sh('git', 'fetch', '--tags')
+    sh('git', 'fetch')
+  end
   desc "Create a pre-release version by pushing a tag to GitHub, and pushing pods to CocoaPods"
   lane :unstable do 
     next_version = calculate_next_canary_version
@@ -33,8 +39,6 @@ platform :ios do
 
     changelog = build_changelog(version: next_version, commits: commits)
 
-    write_changelog(changelog: changelog, path: 'CHANGELOG.md')
-
     # Commit and push 
     release_commit(version: next_version)
 
@@ -43,6 +47,8 @@ platform :ios do
 
     # Push pods
     release_pods()
+
+    post_release(version: next_version, changelog: changelog)
   end
 
   desc "Increment versions"
@@ -61,6 +67,10 @@ platform :ios do
       plist_paths.each do |plist_path|
         set_info_plist_value(path: plist_path, key: PLIST_KEY, value: version)
       end
+
+      # One-offs
+      set_key_value(file: "AmplifyPlugins/Core/AWSPluginsCore/ServiceConfiguration/AmplifyAWSServiceConfiguration.swift", key: "version", value: version)
+      set_key_value(file: "build-support/dependencies.rb", key: "AMPLIFY_VERSION", value: version)
     end
   end
   
@@ -73,8 +83,9 @@ platform :ios do
 
     commit_message = "chore: release #{next_version} [skip ci]"
     sh('git', 'commit', '-am', commit_message)
+
+    # push to origin
     sh('git', 'push', 'origin', 'release')
-    sh('git', 'push', 'origin', 'release:main')
   end
   
   desc "Tag in git and push to GitHub"
@@ -89,26 +100,66 @@ platform :ios do
   desc "Release pods"
   private_lane :release_pods do
     AmplifyPods.pods.each do |pod|
-      pod_path = "/Users/distiller/amplify-ios/#{pod[:spec]}"
+      if pod[:no_push]
+        UI.message "Skipping pushing pod #{pod[:spec]}"
+        next
+      end
 
-      UI.message("Pushing pod #{pod[:spec]}")
+      UI.message "Pushing pod #{pod[:spec]}"
 
-      dupe_error = "[!] Unable to accept duplicate entry"
-
-      begin
-        sh('bundle', 'exec', 'pod', 'trunk', 'push', pod_path, '--allow-warnings', '--synchronous')
-      rescue => ex
-        unless ex.to_s.include? dupe_error
-          raise Exception.new "Unrecoverable error in pod push trunk"
+      with_retry do
+        begin
+          pod_push(path: pod[:spec], allow_warnings: true, synchronous: true)
+        rescue StandardError => e
+          raise e unless e.message =~ /Unable to accept duplicate entry/i
+          UI.important("Version already exists. Ignoring")
         end
       end
 
-      # TODO: utilize action once the PR for adding `synchronous` options has been merged
-      # https://github.com/fastlane/fastlane/pull/16698
-      # pod_push(path: pod[:spec], allow_warnings: true, synchronous: true)
-
-      # This shouldn't be necessary... but it is
-      sh('bundle', 'exec', 'pod', 'repo', 'update')
+      unless pod == AmplifyPods.pods.last
+        # This shouldn't be necessary... but it is
+        sh('bundle', 'exec', 'pod', 'repo', 'update')
+      end
     end
+  end
+
+  desc "Post-release"
+  private_lane :post_release do |options|
+    version = options[:version].to_s
+    changelog = options[:changelog]
+    tag = "v#{version}"
+    plugin_root = File.expand_path("#{ENV['CIRCLE_WORKING_DIRECTORY']}/AmplifyPlugins")
+  
+    sh('bundle', 'exec', 'pod', 'repo', 'update')
+
+    # increment plugin lock files by calling pod update on each
+    AmplifyPods.plugins.each do |plugin|
+      path = "#{plugin_root}/#{plugin}"
+      Dir.chdir(path){ sh('pod', 'update') }
+    end
+
+    write_changelog(changelog: changelog, path: 'CHANGELOG.md')
+
+    commit_message = "chore: finalize release #{version} [skip ci]"
+    sh('git', 'commit', '-am', commit_message)
+
+    add_git_tag(tag: tag, force: true)
+    push_git_tags(tag: tag, force: true)
+
+    # push to origin
+    sh('git', 'push', 'origin', 'release')
+    sh('git', 'push', 'origin', 'release:main')
+  end
+end
+
+def with_retry(retries=5, wait=60)
+  begin
+    yield
+  rescue StandardError => e
+    retries -= 1
+    raise e if retries.zero?
+      UI.error("Error occurred: #{e}; retrying...")
+      sleep(wait)
+    retry
   end
 end

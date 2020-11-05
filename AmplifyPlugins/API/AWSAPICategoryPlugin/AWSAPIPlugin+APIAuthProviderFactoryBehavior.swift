@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+import Amplify
 import Foundation
 
-public class RepeatingTimer {
-    public init() {
-        // TODO: to be implemented
+extension AWSAPIPlugin {
+    public func apiAuthProviderFactory() -> APIAuthProviderFactory {
+        return authProviderFactory
     }
 }

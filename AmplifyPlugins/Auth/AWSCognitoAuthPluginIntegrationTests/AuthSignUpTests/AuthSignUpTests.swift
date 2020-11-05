@@ -33,9 +33,45 @@ class AuthSignUpTests: AWSAuthBaseTest {
     func testSuccessfulRegisterUser() {
         let username = "integTest\(UUID().uuidString)"
         let password = "P123@\(UUID().uuidString)"
-
         let operationExpectation = expectation(description: "Operation should complete")
         let operation = Amplify.Auth.signUp(username: username, password: password) { result in
+            defer {
+                operationExpectation.fulfill()
+            }
+            switch result {
+            case .success(let signUpResult):
+                XCTAssertTrue(signUpResult.isSignupComplete, "Signup should be complete")
+            case .failure(let error):
+                XCTFail("SignUp a new user should not fail \(error)")
+            }
+        }
+        XCTAssertNotNil(operation, "SignUp operations should not be nil")
+        wait(for: [operationExpectation], timeout: networkTimeout)
+    }
+
+    /// Test if user registration is successful.
+    /// Internally, Cognito's `SignUp` API will be called, and will trigger the Pre sign-up, Custom message, and Post
+    /// confirmation lambdas with clientMetadata from the passed in metadata.
+    /// See https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_SignUp.html for more
+    /// details.
+    ///
+    /// - Given: A username that is not present in the system
+    /// - When:
+    ///    - I invoke Amplify.Auth.signUp with the username, a random password and AWSAuthSignUpOptions containing
+    ///    validation data and metadata
+    /// - Then:
+    ///    - I should get a signup complete step.
+    ///    - Configured lambda triggers should have the validationData and clientMetadata.
+    ///
+    func testRegisterUserWithSignUpOptions() {
+        let username = "integTest\(UUID().uuidString)"
+        let password = "P123@\(UUID().uuidString)"
+
+        let operationExpectation = expectation(description: "Operation should complete")
+        let awsAuthSignUpOptions = AWSAuthSignUpOptions(validationData: ["myValidationData": "myvalue"],
+                                                        metadata: ["myClientMetadata": "myvalue"])
+        let options = AuthSignUpOperation.Request.Options(pluginOptions: awsAuthSignUpOptions)
+        let operation = Amplify.Auth.signUp(username: username, password: password, options: options) { result in
             defer {
                 operationExpectation.fulfill()
             }
