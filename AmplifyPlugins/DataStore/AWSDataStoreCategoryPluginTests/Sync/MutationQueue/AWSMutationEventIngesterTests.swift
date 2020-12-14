@@ -13,7 +13,6 @@ import SQLite
 @testable import AWSDataStoreCategoryPlugin
 
 class AWSMutationEventIngesterTests: XCTestCase {
-
     // Used by tests to assert that the MutationEvent table is being updated
     var storageAdapter: SQLiteStorageEngineAdapter!
 
@@ -35,7 +34,7 @@ class AWSMutationEventIngesterTests: XCTestCase {
         do {
             let connection = try Connection(.inMemory)
             storageAdapter = try SQLiteStorageEngineAdapter(connection: connection)
-            try storageAdapter.setUp(models: StorageEngine.systemModels)
+            try storageAdapter.setUp(modelSchemas: StorageEngine.systemModelSchemas)
 
             let syncEngine = try RemoteSyncEngine(storageAdapter: storageAdapter,
                                                   dataStoreConfiguration: .default)
@@ -48,9 +47,12 @@ class AWSMutationEventIngesterTests: XCTestCase {
                                               validAPIPluginKey: validAPIPluginKey,
                                               validAuthPluginKey: validAuthPluginKey)
 
+            let storageEngineBehaviorFactory: StorageEngineBehaviorFactory = {_, _, _, _, _, _  throws in
+                return storageEngine
+            }
             let publisher = DataStorePublisher()
             let dataStorePlugin = AWSDataStorePlugin(modelRegistration: TestModelRegistration(),
-                                                     storageEngine: storageEngine,
+                                                     storageEngineBehaviorFactory: storageEngineBehaviorFactory,
                                                      dataStorePublisher: publisher,
                                                      validAPIPluginKey: validAPIPluginKey,
                                                      validAuthPluginKey: validAuthPluginKey)

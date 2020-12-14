@@ -67,9 +67,10 @@ class SyncEventEmitterTests: XCTestCase {
             }
         }
 
-        reconciliationQueue = MockAWSIncomingEventReconciliationQueue(modelTypes: [Post.self],
+        reconciliationQueue = MockAWSIncomingEventReconciliationQueue(modelSchemas: [Post.schema],
                                                                       api: nil,
                                                                       storageAdapter: nil,
+                                                                      syncExpressions: [],
                                                                       auth: nil)
 
         initialSyncOrchestrator = MockAWSInitialSyncOrchestrator(dataStoreConfiguration: .default,
@@ -80,9 +81,10 @@ class SyncEventEmitterTests: XCTestCase {
         syncEventEmitter = SyncEventEmitter(initialSyncOrchestrator: initialSyncOrchestrator,
                                             reconciliationQueue: reconciliationQueue)
 
-        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.started(modelType: Post.self, syncType: .fullSync))
+        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.started(modelName: Post.modelName,
+                                                                            syncType: .fullSync))
         initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.enqueued(anyPostMutationSync))
-        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.finished(modelType: Post.self))
+        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.finished(modelName: Post.modelName))
 
         reconciliationQueue?.incomingEventSubject.send(.mutationEventApplied(postMutationEvent))
 
@@ -111,10 +113,10 @@ class SyncEventEmitterTests: XCTestCase {
 
         var modelSyncedEventPayloads = [ModelSyncedEvent]()
         let expectedModelSyncedEventPayloads: [ModelSyncedEvent]
-            = [ModelSyncedEvent(modelName: "Post",
+            = [ModelSyncedEvent(modelName: "Comment",
                                 isFullSync: true, isDeltaSync: false,
                                 added: 0, updated: 0, deleted: 0),
-               ModelSyncedEvent(modelName: "Comment",
+               ModelSyncedEvent(modelName: "Post",
                                 isFullSync: true, isDeltaSync: false,
                                 added: 0, updated: 0, deleted: 0)]
         let listener = Amplify.Hub.publisher(for: .dataStore).sink { payload in
@@ -126,6 +128,9 @@ class SyncEventEmitterTests: XCTestCase {
                 }
                 modelSyncedEventPayloads.append(modelSyncedEventPayload)
                 if modelSyncedEventPayloads.count == 2 {
+                    modelSyncedEventPayloads.sort {
+                        $0.modelName < $1.modelName
+                    }
                     XCTAssertEqual(modelSyncedEventPayloads[0], expectedModelSyncedEventPayloads[0])
                     XCTAssertEqual(modelSyncedEventPayloads[1], expectedModelSyncedEventPayloads[1])
                     modelSyncedReceived.fulfill()
@@ -137,11 +142,12 @@ class SyncEventEmitterTests: XCTestCase {
             }
         }
 
-        let syncableModelTypes = ModelRegistry.models.filter { $0.schema.isSyncable }
+        let syncableModelSchemas = ModelRegistry.modelSchemas.filter { $0.isSyncable }
 
-        reconciliationQueue = MockAWSIncomingEventReconciliationQueue(modelTypes: syncableModelTypes,
+        reconciliationQueue = MockAWSIncomingEventReconciliationQueue(modelSchemas: syncableModelSchemas,
                                                                       api: nil,
                                                                       storageAdapter: nil,
+                                                                      syncExpressions: [],
                                                                       auth: nil)
 
         initialSyncOrchestrator = MockAWSInitialSyncOrchestrator(dataStoreConfiguration: .default,
@@ -152,11 +158,11 @@ class SyncEventEmitterTests: XCTestCase {
         syncEventEmitter = SyncEventEmitter(initialSyncOrchestrator: initialSyncOrchestrator,
                                             reconciliationQueue: reconciliationQueue)
 
-        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.started(modelType: Post.self, syncType: .fullSync))
-        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.finished(modelType: Post.self))
+        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.started(modelName: Post.modelName, syncType: .fullSync))
+        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.finished(modelName: Post.modelName))
 
-        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.started(modelType: Comment.self, syncType: .fullSync))
-        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.finished(modelType: Comment.self))
+        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.started(modelName: Comment.modelName, syncType: .fullSync))
+        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.finished(modelName: Comment.modelName))
 
         waitForExpectations(timeout: 1)
         syncEventEmitter = nil
@@ -200,12 +206,12 @@ class SyncEventEmitterTests: XCTestCase {
         let commentMutationEvent = try MutationEvent(untypedModel: testComment, mutationType: .delete)
 
         let expectedModelSyncedEventPayloads: [ModelSyncedEvent]
-            = [ModelSyncedEvent(modelName: "Post",
+            = [ModelSyncedEvent(modelName: "Comment",
                                 isFullSync: true, isDeltaSync: false,
-                                added: 1, updated: 0, deleted: 0),
-               ModelSyncedEvent(modelName: "Comment",
+                                added: 0, updated: 0, deleted: 1),
+               ModelSyncedEvent(modelName: "Post",
                                 isFullSync: true, isDeltaSync: false,
-                                added: 0, updated: 0, deleted: 1)]
+                                added: 1, updated: 0, deleted: 0)]
         var modelSyncedEventPayloads = [ModelSyncedEvent]()
         let listener = Amplify.Hub.publisher(for: .dataStore).sink { payload in
             switch payload.eventName {
@@ -217,6 +223,9 @@ class SyncEventEmitterTests: XCTestCase {
                 modelSyncedEventPayloads.append(modelSyncedEventPayload)
 
                 if modelSyncedEventPayloads.count == 2 {
+                    modelSyncedEventPayloads.sort {
+                        $0.modelName < $1.modelName
+                    }
                     XCTAssertTrue(modelSyncedEventPayloads[0] == expectedModelSyncedEventPayloads[0])
                     XCTAssertTrue(modelSyncedEventPayloads[1] == expectedModelSyncedEventPayloads[1])
                     modelSyncedReceived.fulfill()
@@ -228,11 +237,12 @@ class SyncEventEmitterTests: XCTestCase {
             }
         }
 
-        let syncableModelTypes = ModelRegistry.models.filter { $0.schema.isSyncable }
+        let syncableModelSchemas = ModelRegistry.modelSchemas.filter { $0.isSyncable }
 
-        reconciliationQueue = MockAWSIncomingEventReconciliationQueue(modelTypes: syncableModelTypes,
+        reconciliationQueue = MockAWSIncomingEventReconciliationQueue(modelSchemas: syncableModelSchemas,
                                                                       api: nil,
                                                                       storageAdapter: nil,
+                                                                      syncExpressions: [],
                                                                       auth: nil)
 
         initialSyncOrchestrator = MockAWSInitialSyncOrchestrator(dataStoreConfiguration: .default,
@@ -243,13 +253,15 @@ class SyncEventEmitterTests: XCTestCase {
         syncEventEmitter = SyncEventEmitter(initialSyncOrchestrator: initialSyncOrchestrator,
                                             reconciliationQueue: reconciliationQueue)
 
-        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.started(modelType: Post.self, syncType: .fullSync))
+        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.started(modelName: Post.modelName,
+                                                                            syncType: .fullSync))
         initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.enqueued(anyPostMutationSync))
-        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.finished(modelType: Post.self))
+        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.finished(modelName: Post.modelName))
 
-        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.started(modelType: Comment.self, syncType: .fullSync))
+        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.started(modelName: Comment.modelName,
+                                                                            syncType: .fullSync))
         initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.enqueued(anyCommentMutationSync))
-        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.finished(modelType: Comment.self))
+        initialSyncOrchestrator?.initialSyncOrchestratorTopic.send(.finished(modelName: Comment.modelName))
 
         reconciliationQueue?.incomingEventSubject.send(.mutationEventApplied(postMutationEvent))
         reconciliationQueue?.incomingEventSubject.send(.mutationEventApplied(commentMutationEvent))

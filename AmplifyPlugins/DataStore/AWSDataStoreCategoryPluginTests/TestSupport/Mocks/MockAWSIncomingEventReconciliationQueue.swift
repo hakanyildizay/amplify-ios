@@ -13,10 +13,11 @@ import Combine
 @testable import AWSDataStoreCategoryPlugin
 
 class MockAWSIncomingEventReconciliationQueue: IncomingEventReconciliationQueue {
-    static let factory: IncomingEventReconciliationQueueFactory = { modelTypes, api, storageAdapter, auth, _ in
-        MockAWSIncomingEventReconciliationQueue(modelTypes: modelTypes,
+    static let factory: IncomingEventReconciliationQueueFactory = { modelSchemas, api, storageAdapter, syncExpressions, auth, _ in
+        MockAWSIncomingEventReconciliationQueue(modelSchemas: modelSchemas,
                                                 api: api,
                                                 storageAdapter: storageAdapter,
+                                                syncExpressions: syncExpressions,
                                                 auth: auth)
     }
     let incomingEventSubject: PassthroughSubject<IncomingEventReconciliationQueueEvent, DataStoreError>
@@ -25,9 +26,10 @@ class MockAWSIncomingEventReconciliationQueue: IncomingEventReconciliationQueue 
     }
 
     static var lastInstance = AtomicValue<MockAWSIncomingEventReconciliationQueue?>(initialValue: nil)
-    init(modelTypes: [Model.Type],
+    init(modelSchemas: [ModelSchema],
          api: APICategoryGraphQLBehavior?,
          storageAdapter: StorageEngineAdapter?,
+         syncExpressions: [DataStoreSyncExpression],
          auth: AuthCategoryBehavior?) {
         self.incomingEventSubject = PassthroughSubject<IncomingEventReconciliationQueueEvent, DataStoreError>()
         updateLastInstance(instance: self)
@@ -45,7 +47,7 @@ class MockAWSIncomingEventReconciliationQueue: IncomingEventReconciliationQueue 
         incomingEventSubject.send(.paused)
     }
 
-    func offer(_ remoteModel: MutationSync<AnyModel>) {
+    func offer(_ remoteModel: MutationSync<AnyModel>, modelSchema: ModelSchema) {
         //no-op for mock
     }
 

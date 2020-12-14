@@ -20,13 +20,13 @@ class SyncMutationToCloudOperationTests: XCTestCase {
     let secondsInADay = 60 * 60 * 24
     var mockAPIPlugin: MockAPICategoryPlugin!
 
-    var reachabilityPublisher: PassthroughSubject<ReachabilityUpdate, Never>!
+    var reachabilityPublisher: CurrentValueSubject<ReachabilityUpdate, Never>!
     var publisher: AnyPublisher<ReachabilityUpdate, Never> {
         return reachabilityPublisher.eraseToAnyPublisher()
     }
 
     override func setUp() {
-        reachabilityPublisher = PassthroughSubject<ReachabilityUpdate, Never>()
+        reachabilityPublisher = CurrentValueSubject<ReachabilityUpdate, Never>(ReachabilityUpdate(isOnline: false))
         tryOrFail {
             try setUpWithAPI()
         }
@@ -40,7 +40,7 @@ class SyncMutationToCloudOperationTests: XCTestCase {
         let expectSecondCallToAPIMutate = expectation(description: "Second call to API.mutate")
 
         let post1 = Post(title: "post1", content: "content1", createdAt: .now())
-        let mutationEvent = try MutationEvent(model: post1, mutationType: .create)
+        let mutationEvent = try MutationEvent(model: post1, modelSchema: post1.schema, mutationType: .create)
 
         var listenerFromFirstRequestOptional: GraphQLOperation<MutationSync<AnyModel>>.ResultListener?
         var listenerFromSecondRequestOptional: GraphQLOperation<MutationSync<AnyModel>>.ResultListener?
@@ -51,8 +51,8 @@ class SyncMutationToCloudOperationTests: XCTestCase {
                 listenerFromFirstRequestOptional = eventListener
                 expectFirstCallToAPIMutate.fulfill()
             } else if numberOfTimesEntered == 1 {
-                expectSecondCallToAPIMutate.fulfill()
                 listenerFromSecondRequestOptional = eventListener
+                expectSecondCallToAPIMutate.fulfill()
             } else {
                 XCTFail("This should not be called more than once")
             }
@@ -111,7 +111,7 @@ class SyncMutationToCloudOperationTests: XCTestCase {
         let expectFirstCallToAPIMutate = expectation(description: "First call to API.mutate")
         let expectSecondCallToAPIMutate = expectation(description: "Second call to API.mutate")
         let post1 = Post(title: "post1", content: "content1", createdAt: .now())
-        let mutationEvent = try MutationEvent(model: post1, mutationType: .create)
+        let mutationEvent = try MutationEvent(model: post1, modelSchema: post1.schema, mutationType: .create)
 
         var listenerFromFirstRequestOptional: GraphQLOperation<MutationSync<AnyModel>>.ResultListener?
         var listenerFromSecondRequestOptional: GraphQLOperation<MutationSync<AnyModel>>.ResultListener?
@@ -181,7 +181,7 @@ class SyncMutationToCloudOperationTests: XCTestCase {
         let expectMutationRequestFailed = expectation(description: "Expect to fail mutation request")
         let expectFirstCallToAPIMutate = expectation(description: "First call to API.mutate")
         let post1 = Post(title: "post1", content: "content1", createdAt: .now())
-        let mutationEvent = try MutationEvent(model: post1, mutationType: .create)
+        let mutationEvent = try MutationEvent(model: post1, modelSchema: post1.schema, mutationType: .create)
 
         var listenerFromFirstRequestOptional: GraphQLOperation<MutationSync<AnyModel>>.ResultListener?
 
@@ -236,10 +236,9 @@ extension SyncMutationToCloudOperationTests {
     private func setUpCore() throws -> AmplifyConfiguration {
         Amplify.reset()
 
-        let storageEngine = MockStorageEngineBehavior()
         let dataStorePublisher = DataStorePublisher()
         let dataStorePlugin = AWSDataStorePlugin(modelRegistration: TestModelRegistration(),
-                                                 storageEngine: storageEngine,
+                                                 storageEngineBehaviorFactory: MockStorageEngineBehavior.mockStorageEngineBehaviorFactory,
                                                  dataStorePublisher: dataStorePublisher,
                                                  validAPIPluginKey: "MockAPICategoryPlugin",
                                                  validAuthPluginKey: "MockAuthCategoryPlugin")

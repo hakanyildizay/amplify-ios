@@ -50,7 +50,8 @@ class ReconcileAndLocalSaveOperationTests: XCTestCase {
         stateMachine = MockStateMachine(initialState: .waiting,
                                         resolver: ReconcileAndLocalSaveOperation.Resolver.resolve(currentState:action:))
 
-        operation = ReconcileAndLocalSaveOperation(remoteModel: anyPostMutationSync,
+        operation = ReconcileAndLocalSaveOperation(modelSchema: anyPostMutationSync.model.schema,
+                                                   remoteModel: anyPostMutationSync,
                                                    storageAdapter: storageAdapter,
                                                    stateMachine: stateMachine)
     }
@@ -296,10 +297,9 @@ extension ReconcileAndLocalSaveOperationTests {
     private func setUpCore() throws -> AmplifyConfiguration {
         Amplify.reset()
 
-        let storageEngine = MockStorageEngineBehavior()
         let dataStorePublisher = DataStorePublisher()
         let dataStorePlugin = AWSDataStorePlugin(modelRegistration: TestModelRegistration(),
-                                                 storageEngine: storageEngine,
+                                                 storageEngineBehaviorFactory: MockStorageEngineBehavior.mockStorageEngineBehaviorFactory,
                                                  dataStorePublisher: dataStorePublisher,
                                                  validAPIPluginKey: "MockAPICategoryPlugin",
                                                  validAuthPluginKey: "MockAuthCategoryPlugin")

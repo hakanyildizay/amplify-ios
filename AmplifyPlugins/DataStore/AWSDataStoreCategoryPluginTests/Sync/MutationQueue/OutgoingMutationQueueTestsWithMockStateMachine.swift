@@ -146,6 +146,7 @@ class OutgoingMutationQueueMockStateTest: XCTestCase {
                         content: "content",
                         createdAt: .now())
         let futureResult = try MutationEvent(model: post,
+                                             modelSchema: post.schema,
                                              mutationType: .create)
         eventSource.pushMutationEvent(futureResult: .success(futureResult))
 
@@ -281,10 +282,9 @@ extension OutgoingMutationQueueMockStateTest {
     private func setUpCore() throws -> AmplifyConfiguration {
         Amplify.reset()
 
-        let storageEngine = MockStorageEngineBehavior()
         let dataStorePublisher = DataStorePublisher()
         let dataStorePlugin = AWSDataStorePlugin(modelRegistration: TestModelRegistration(),
-                                                 storageEngine: storageEngine,
+                                                 storageEngineBehaviorFactory: MockStorageEngineBehavior.mockStorageEngineBehaviorFactory,
                                                  dataStorePublisher: dataStorePublisher,
                                                  validAPIPluginKey: "MockAPICategoryPlugin",
                                                  validAuthPluginKey: "MockAuthCategoryPlugin")

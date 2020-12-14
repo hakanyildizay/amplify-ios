@@ -1,5 +1,56 @@
 # Changelog
 ## Unreleased
+## 1.5.1 (2020-12-11)
+
+### Bug Fixes
+
+- **predictions**: use string's unicode scalars view to compute indexes for Comprehend results (#904)
+- **Predictions**: Callback is not triggered with URLError (#896)
+- **amplify**: DataStore query fix column missing issue for @connection hasMany schema (#885)
+- add targetName to hasOne relationships (#926)
+- **API**: Fix unstable AWSAPICategoryPluginResetTests.testReset() (#937)
+
+## 1.5.0 (2020-12-03)
+
+### Features
+
+- **datastore**: selective sync on initial sync & incoming subscription models (#884)
+- **DataStore**: Start/Stop implementation (#919)
+  - **Note:** In previous releases, the DataStore sync engine was started automatically on `Amplify.configure()`. With this release, the DataStore sync engine does not start on `Amplify.configure()`.  More information can be found in the documentation [here](https://docs.amplify.aws/lib/datastore/other-methods/q/platform/ios#start).
+
+
+### Bug Fixes
+
+- **API**: subscription cancel unit test failing intermittently (#927)
+- **auth**: Fix an issue where the fetchAuthSession callback is called twice (#922)
+- **DataStore**: SyncMutationToCloudOperationTests thread sanitizer bug (#915)
+- **Predictions**: Avoid Multiple Rekognition Error Return (#910)
+- **Predictions**: Fix of PredicationPlugin unit tests (#903)
+- Use correct category plugins to populate dev menu (#897)
+- **DataStore**: Nested query predicates are not stored properly (#905)
+
+## 1.4.4 (2020-11-19)
+
+### Bug Fixes
+
+- Designate SwiftUI a weak_framework in podspec (#892)
+
+## 1.4.3 (2020-11-13)
+
+### Bug Fixes
+
+- **DataStore**: failed subscriptions lead to instability in sync engine (#889)
+
+## 1.4.2 (2020-11-11)
+
+### Bug Fixes
+- **amplify**: change reset method (#866)
+- **datastore**: Fix regression caused by changing the public enum value (#883)
+
+## 1.4.1 (2020-11-05)
+
+This version has been deprecated. Please use the latest release.
+
 ## 1.4.0 (2020-10-23)
 
 ### Features

@@ -8,7 +8,7 @@
 import Foundation
 
 /// Defines the type of a `Model` field.
-/// - Warning: Although this has `public` access, it is intended for internal use and should not be used directly
+/// - Warning: Although this has `public` access, it is intended for internal & codegen use and should not be used directly
 ///   by host applications. The behavior of this may change without warning.
 public enum ModelFieldType {
 
@@ -21,10 +21,32 @@ public enum ModelFieldType {
     case timestamp
     case bool
     case `enum`(type: EnumPersistable.Type)
-    case embedded(type: Codable.Type)
-    case embeddedCollection(of: Codable.Type)
-    case model(type: Model.Type)
-    case collection(of: Model.Type)
+    case embedded(type: Codable.Type, schema: ModelSchema?)
+    case embeddedCollection(of: Codable.Type, schema: ModelSchema?)
+    case model(name: ModelName)
+    case collection(of: ModelName)
+
+    public static func model(type: Model.Type) -> ModelFieldType {
+        .model(name: type.modelName)
+    }
+
+    public static func collection(of type: Model.Type) -> ModelFieldType {
+        .collection(of: type.modelName)
+    }
+
+    public static func embedded(type: Codable.Type) -> ModelFieldType {
+        guard let embeddedType = type as? Embeddable.Type else {
+            return .embedded(type: type, schema: nil)
+        }
+        return .embedded(type: type, schema: embeddedType.schema)
+    }
+
+    public static func embeddedCollection(of type: Codable.Type) -> ModelFieldType {
+        guard let embeddedType = type as? Embeddable.Type else {
+            return .embedded(type: type, schema: nil)
+        }
+        return .embeddedCollection(of: type, schema: embeddedType.schema)
+    }
 
     public var isArray: Bool {
         switch self {
@@ -40,7 +62,7 @@ public enum ModelFieldType {
         Please use Amplify CLI 4.21.4 or newer to re-generate your Models to conform to Embeddable type.
     """)
     public static func customType(_ type: Codable.Type) -> ModelFieldType {
-        return .embedded(type: type)
+        return .embedded(type: type, schema: nil)
     }
 
     public static func from(type: Any.Type) -> ModelFieldType {
@@ -81,7 +103,7 @@ public enum ModelFieldType {
     }
 }
 
-/// - Warning: Although this has `public` access, it is intended for internal use and should not be used directly
+/// - Warning: Although this has `public` access, it is intended for internal & codegen use and should not be used directly
 ///   by host applications. The behavior of this may change without warning.
 public enum ModelFieldNullability {
     case optional
@@ -97,7 +119,7 @@ public enum ModelFieldNullability {
     }
 }
 
-/// - Warning: Although this has `public` access, it is intended for internal use and should not be used directly
+/// - Warning: Although this has `public` access, it is intended for internal & codegen use and should not be used directly
 ///   by host applications. The behavior of this may change without warning.
 public struct ModelSchemaDefinition {
 
@@ -138,7 +160,7 @@ public struct ModelSchemaDefinition {
     }
 }
 
-/// - Warning: Although this has `public` access, it is intended for internal use and should not be used directly
+/// - Warning: Although this has `public` access, it is intended for internal & codegen use and should not be used directly
 ///   by host applications. The behavior of this may change without warning.
 public enum ModelFieldDefinition {
 
@@ -189,11 +211,12 @@ public enum ModelFieldDefinition {
     public static func hasOne(_ key: CodingKey,
                               is nullability: ModelFieldNullability = .required,
                               ofType type: Model.Type,
-                              associatedWith associatedKey: CodingKey) -> ModelFieldDefinition {
+                              associatedWith associatedKey: CodingKey,
+                              targetName: String? = nil) -> ModelFieldDefinition {
         return .field(key,
                       is: nullability,
                       ofType: .model(type: type),
-                      association: .hasOne(associatedWith: associatedKey))
+                      association: .hasOne(associatedWith: associatedKey, targetName: targetName))
     }
 
     public static func belongsTo(_ key: CodingKey,

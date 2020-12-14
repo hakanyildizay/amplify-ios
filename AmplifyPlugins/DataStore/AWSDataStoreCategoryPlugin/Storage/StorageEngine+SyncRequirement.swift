@@ -12,9 +12,11 @@ import AWSPluginsCore
 
 extension StorageEngine {
 
-    func startSync() {
+    func startSync(completion: @escaping DataStoreCallback<Void>) {
         guard let api = tryGetAPIPlugin() else {
             log.info("Unable to find suitable API plugin for syncEngine. syncEngine will not be started")
+            completion(.failure(.configuration("Unable to find suitable API plugin for syncEngine. syncEngine will not be started",
+                                               "Ensure the API category has been setup and configured for your project", nil)))
             return
         }
 
@@ -22,15 +24,18 @@ extension StorageEngine {
 
         guard authPluginRequired else {
             syncEngine?.start(api: api, auth: nil)
+            completion(.successfulVoid)
             return
         }
 
         guard let auth = tryGetAuthPlugin() else {
             log.warn("Unable to find suitable Auth plugin for syncEngine. Models require auth")
+            completion(.failure(.configuration("Unable to find suitable Auth plugin for syncEngine. Models require auth",
+                                               "Ensure the Auth category has been setup and configured for your project", nil)))
             return
         }
-
         syncEngine?.start(api: api, auth: auth)
+        completion(.successfulVoid)
     }
 
     private func tryGetAPIPlugin() -> APICategoryGraphQLBehavior? {
@@ -50,18 +55,19 @@ extension StorageEngine {
     }
 
     private func requiresAuthPlugin(api: APICategoryGraphQLBehavior?) -> Bool {
-        let containsAuthEnabledSyncableModels = ModelRegistry.models.contains {
-            $0.schema.isSyncable && $0.schema.hasAuthenticationRules
+        let containsAuthEnabledSyncableModels = ModelRegistry.modelSchemas.contains {
+            $0.isSyncable && $0.hasAuthenticationRules
         }
 
         if containsAuthEnabledSyncableModels,
-            let apiCategoryAuthProviderBehavior = api as? APICategoryAuthProviderFactoryBehavior,
-            apiCategoryAuthProviderBehavior.apiAuthProviderFactory().oidcAuthProvider() != nil {
+           let apiCategoryAuthProviderBehavior = api as? APICategoryAuthProviderFactoryBehavior,
+           apiCategoryAuthProviderBehavior.apiAuthProviderFactory().oidcAuthProvider() != nil {
             if tryGetAuthPlugin() != nil {
-                log.warn("""
-Detected OIDC Auth Provider & Auth Plugin Category available.
-This is not a supported use case.
-""")
+                log.warn(
+                    """
+                    Detected OIDC Auth Provider & Auth Plugin Category available.
+                    This is not a supported use case.
+                    """)
             }
             return false
         }
